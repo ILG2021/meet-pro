@@ -12,6 +12,7 @@ import {
   RoomContext,
   VideoConference,
 } from '@livekit/components-react';
+import TextArea from 'antd/es/input/TextArea';
 import {
   ExternalE2EEKeyProvider,
   RoomOptions,
@@ -24,6 +25,9 @@ import {
 } from 'livekit-client';
 import { useRouter } from 'next/navigation';
 import React from 'react';
+import "../../../styles/page.css"
+import Paragraph from 'antd/es/skeleton/Paragraph';
+import { Typography } from 'antd';
 
 const CONN_DETAILS_ENDPOINT =
   process.env.NEXT_PUBLIC_CONN_DETAILS_ENDPOINT ?? '/api/connection-details';
@@ -128,15 +132,15 @@ function VideoConferenceComponent(props: {
       dynacast: true,
       e2ee: e2eeEnabled
         ? {
-            keyProvider,
-            worker,
-          }
+          keyProvider,
+          worker,
+        }
         : undefined,
     };
   }, [props.userChoices, props.options.hq, props.options.codec]);
 
   const room = React.useMemo(() => new Room(roomOptions), []);
-
+  const [transcript, setTranscript] = React.useState('')
   React.useEffect(() => {
     if (e2eeEnabled) {
       keyProvider
@@ -197,6 +201,16 @@ function VideoConferenceComponent(props: {
     };
   }, [e2eeSetupComplete, room, props.connectionDetails, props.userChoices]);
 
+  React.useEffect(() => {
+    room.registerTextStreamHandler('lk.transcription', async (reader, participantInfo) => {
+      const message = await reader.readAll();
+      // @ts-ignore
+      if (reader.info.attributes['lk.transcribed_track_id']) {
+        console.log(`New transcription from ${participantInfo.identity}: ${message}`);
+        setTranscript((prev) => (prev ? `${prev}${message}` : message));
+      }
+    });
+  }, [room])
   const router = useRouter();
   const handleOnLeave = React.useCallback(() => router.push('/'), [router]);
   const handleError = React.useCallback((error: Error) => {
@@ -213,10 +227,15 @@ function VideoConferenceComponent(props: {
   return (
     <div className="lk-room-container">
       <RoomContext.Provider value={room}>
-        <VideoConference
-          chatMessageFormatter={formatChatMessageLinks}
-          SettingsComponent={SHOW_SETTINGS_MENU ? SettingsMenu : undefined}
-        />
+        <div style={{ display: 'flex', height: '100%', width: '100%' }}>
+          <VideoConference
+            style={{ flex: 1 }}
+            chatMessageFormatter={formatChatMessageLinks}
+            SettingsComponent={SHOW_SETTINGS_MENU ? SettingsMenu : undefined}
+          />
+          <TextArea style={{ width: 300, padding: 8 }} className='theme-textarea' value={transcript}>
+          </TextArea>
+        </div>
         <DebugMode />
         <RecordingIndicator />
       </RoomContext.Provider>
